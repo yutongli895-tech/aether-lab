@@ -1,0 +1,8 @@
+{
+  "name": "Aether AI Architect",
+  "description": "A high-end, futuristic SaaS landing page for an AI Design Agency featuring real-time Gemini chat and image generation capabilities.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone"
+  ]
+}
