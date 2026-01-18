@@ -2,13 +2,21 @@
 import { GoogleGenAI, GenerateContentResponse } from "@google/genai";
 
 // 初始化 Gemini API
-// 注意：process.env.API_KEY 会由系统自动注入，无需手动修改
-const genAI = new GoogleGenAI({ apiKey: process.env.API_KEY });
+// process.env.API_KEY 由环境自动注入
+let genAI: any = null;
+
+try {
+  genAI = new GoogleGenAI({ apiKey: process.env.API_KEY });
+} catch (e) {
+  console.error("Gemini SDK Initialization failed:", e);
+}
 
 /**
  * 获取 Gemini 文本响应（支持流式传输）
  */
 export const getGeminiChatStream = async (message: string, history: any[] = []) => {
+  if (!genAI) throw new Error("Aether AI Engine not initialized properly.");
+  
   try {
     const chat = genAI.chats.create({
       model: "gemini-3-flash-preview",
@@ -19,8 +27,8 @@ export const getGeminiChatStream = async (message: string, history: any[] = []) 
         1. 建筑美学分析与现代 UI/UX 设计建议。
         2. Cloudflare Worker, 边缘计算等高并发架构咨询。
         3. 能够提供具体的代码片段和设计范式。
-        你的回答应该专业、简洁且富有前瞻性珍惜。`,
-        tools: [{ googleSearch: {} }], // 开启联网搜索增强
+        你的回答应该专业、简洁且富有前瞻性。`,
+        tools: [{ googleSearch: {} }],
       },
     });
 
@@ -33,7 +41,7 @@ export const getGeminiChatStream = async (message: string, history: any[] = []) 
 };
 
 /**
- * 核心：生成图片 URL
+ * 生成图片 URL
  * @param prompt 提示词
  * @param authCode 访问密码
  */
@@ -44,7 +52,7 @@ export const generateAetherImage = async (prompt: string, authCode: string) => {
   const queryParams = new URLSearchParams({
     prompt: prompt,
     model: modelId,
-    password: authCode, // 使用用户输入的密码
+    password: authCode,
     width: "1024",
     height: "1024",
     steps: "6"
