@@ -1,330 +1,251 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { generateAetherImage } from '../services/geminiService.ts';
 import { 
-  ImageIcon, 
-  Wand2, 
-  Loader2, 
-  History, 
-  ExternalLink, 
-  Globe, 
-  AlertCircle, 
-  ShieldCheck, 
-  Clock, 
-  Key,
-  Unlock,
-  Lock,
-  ChevronRight,
-  ShieldAlert
+  Wand2, Loader2, History, Globe, 
+  Settings, Lock, Maximize2, ShieldAlert, RefreshCw, 
+  Download, ChevronDown, ChevronUp, Layers, Clock, 
+  ImageIcon, Monitor, Sliders, Dices
 } from 'lucide-react';
 import { GeneratedImage } from '../types.ts';
 
+const MODELS = [
+  { id: 'flux-1-schnell', name: 'FLUX.1 [schnell] - 精确细节表现的高性能模型' },
+  { id: 'stable-diffusion-xl-base-1.0', name: 'SDXL Base 1.0 - 工业级写实模型' },
+  { id: 'dreamshaper-8-lcm', name: 'DreamShaper 8 LCM - 增强真实感的微调模型' },
+  { id: 'stable-diffusion-xl-lightning', name: 'SDXL Lightning - 超高速实时渲染模型' }
+];
+
 export const ImageGen: React.FC = () => {
-  // 核心状态管理
-  const [prompt, setPrompt] = useState('');
+  const [prompt, setPrompt] = useState('cyberpunk cat');
+  const [negPrompt, setNegPrompt] = useState('');
+  const [password, setPassword] = useState('');
+  const [model, setModel] = useState(MODELS[0].id);
+  const [width, setWidth] = useState(1024);
+  const [height, setHeight] = useState(1024);
+  const [steps, setSteps] = useState(20);
+  const [guidance, setGuidance] = useState(7.5);
+  const [seed, setSeed] = useState<string>('');
+  const [showAdvanced, setShowAdvanced] = useState(true);
+  
   const [isGenerating, setIsGenerating] = useState(false);
-  const [errorType, setErrorType] = useState<'none' | 'limit' | 'auth' | 'network'>('none');
+  const [error, setError] = useState<'none' | 'auth' | 'limit' | 'network'>('none');
   const [history, setHistory] = useState<GeneratedImage[]>([]);
   const [currentImage, setCurrentImage] = useState<string | null>(null);
-  
-  // 访问暗号锁相关状态
-  const [authCode, setAuthCode] = useState('');
-  const [isUnlocked, setIsUnlocked] = useState(false);
-  const [showAuthScreen, setShowAuthScreen] = useState(true);
+  const [genTime, setGenTime] = useState<string>('-');
 
-  // 初始化：检查本地存储的暗号
-  useEffect(() => {
-    try {
-      const savedCode = localStorage.getItem('aether_auth_code');
-      if (savedCode) {
-        setAuthCode(savedCode);
-        setIsUnlocked(true);
-        setShowAuthScreen(false);
-      }
-    } catch (e) {
-      console.warn("LocalStorage access failed - checking privacy settings.");
-    }
-  }, []);
-
-  // 执行解锁逻辑
-  const handleUnlock = () => {
-    if (authCode.trim()) {
-      try {
-        localStorage.setItem('aether_auth_code', authCode);
-      } catch (e) {}
-      setIsUnlocked(true);
-      setShowAuthScreen(false);
-      setErrorType('none');
-    }
+  const handleRandomPrompt = () => {
+    const prompts = [
+      'architectural photography of a minimalist villa on Mars, dusty red horizon',
+      'cyberpunk cityscape with glowing holographic koi fish swimming in air',
+      'organic architecture, biophilic design, futuristic library inside a tree',
+      'close-up portrait of an android monk, golden circuitry, peaceful expression'
+    ];
+    setPrompt(prompts[Math.floor(Math.random() * prompts.length)]);
   };
 
-  // 手动重新锁定
-  const handleRelock = () => {
-    try {
-      localStorage.removeItem('aether_auth_code');
-    } catch (e) {}
-    setIsUnlocked(false);
-    setShowAuthScreen(true);
-    setAuthCode('');
-  };
-
-  // 核心图像生成逻辑
   const handleGenerate = async () => {
-    if (!prompt.trim() || isGenerating || !isUnlocked) return;
-
+    if (!prompt.trim() || isGenerating) return;
     setIsGenerating(true);
-    setErrorType('none');
-    
+    setError('none');
+    const startTime = Date.now();
+
     try {
-      const imageUrl = await generateAetherImage(prompt, authCode);
-      
-      // 使用 Image 对象预加载图片，确保加载成功后再展示
+      const finalSeed = seed === '' ? Math.floor(Math.random() * 9999999) : parseInt(seed);
+      const imageUrl = await generateAetherImage({
+        prompt,
+        negative_prompt: negPrompt,
+        model,
+        password,
+        width,
+        height,
+        steps: model === 'flux-1-schnell' ? Math.min(steps, 8) : steps,
+        guidance,
+        seed: finalSeed
+      });
+
       const img = new Image();
       img.src = imageUrl;
-      
       img.onload = () => {
         setCurrentImage(imageUrl);
-        setHistory(prev => [{
-          url: imageUrl,
-          prompt: prompt,
-          timestamp: Date.now()
-        }, ...prev].slice(0, 6)); // 仅保留最近 6 条
+        setGenTime(((Date.now() - startTime) / 1000).toFixed(1) + 's');
+        setHistory(prev => [{ url: imageUrl, prompt, timestamp: Date.now() }, ...prev].slice(0, 6));
         setIsGenerating(false);
       };
-
       img.onerror = async () => {
-        // 如果图片渲染失败，通过 fetch 获取具体的 HTTP 错误状态
-        try {
-          const resp = await fetch(imageUrl);
-          if (resp.status === 429) {
-            setErrorType('limit');
-          } else if (resp.status === 403) {
-            setErrorType('auth');
-            // 暗号失效，强制弹出锁屏
-            setIsUnlocked(false);
-            setShowAuthScreen(true);
-          } else {
-            setErrorType('network');
-          }
-        } catch (e) {
-          setErrorType('network');
-        }
+        const resp = await fetch(imageUrl);
+        if (resp.status === 403) setError('auth');
+        else if (resp.status === 429) setError('limit');
+        else setError('network');
         setIsGenerating(false);
       };
-    } catch (err) {
-      setErrorType('network');
+    } catch (e) {
+      setError('network');
       setIsGenerating(false);
     }
   };
 
-  const getErrorMessage = () => {
-    switch(errorType) {
-      case 'limit': return '已达边缘节点速率限制 (10 RPM)';
-      case 'auth': return '鉴权失效或访问暗号错误';
-      case 'network': return '节点通信波动，请重试';
-      default: return '';
-    }
-  };
-
   return (
-    <section id="design" className="py-24 bg-[#030303] relative min-h-[900px] overflow-hidden">
-      {/* 动态背景装饰 */}
-      <div className="blob bottom-0 left-0 opacity-10 animate-pulse" />
-      <div className="blob top-0 right-0 opacity-5" style={{ animationDelay: '2s' }} />
-
+    <section id="design" className="py-24 bg-[#030303] relative min-h-screen">
+      <div className="blob top-1/4 right-0 opacity-10" />
       <div className="container mx-auto px-6 relative z-10">
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-20 items-center">
+        
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
           
-          <div className="animate-fade-in relative">
-            
-            {/* 顶栏状态指示 */}
-            <div className="flex items-center justify-between mb-8">
-              <div className="inline-flex items-center gap-2 text-indigo-400">
-                <Globe className={`w-5 h-5 ${isGenerating ? 'animate-spin' : ''}`} />
-                <span className="font-bold tracking-widest text-[10px] uppercase">Node: Flux-Edge-S1</span>
-              </div>
-              <div className="flex items-center gap-3">
-                {isUnlocked && (
-                  <button 
-                    onClick={handleRelock}
-                    className="flex items-center gap-2 px-3 py-1 rounded-full bg-white/5 border border-white/10 text-[9px] font-bold uppercase text-zinc-500 hover:text-white transition-colors"
-                  >
-                    <Lock className="w-3 h-3" /> Relock Node
-                  </button>
-                )}
-                <div className={`flex items-center gap-2 px-3 py-1 rounded-full ${errorType === 'limit' ? 'bg-amber-500/10 border-amber-500/20' : isUnlocked ? 'bg-emerald-500/10 border-emerald-500/20' : 'bg-red-500/10 border-red-500/20'}`}>
-                  {errorType === 'limit' ? <Clock className="w-3.5 h-3.5 text-amber-500" /> : isUnlocked ? <ShieldCheck className="w-3.5 h-3.5 text-emerald-500" /> : <Key className="w-3.5 h-3.5 text-red-500" />}
-                  <span className={`text-[9px] font-bold uppercase ${errorType === 'limit' ? 'text-amber-500' : isUnlocked ? 'text-emerald-500' : 'text-red-500'}`}>
-                    {errorType === 'limit' ? 'Rate Limited' : isUnlocked ? 'AES-256 Auth Active' : 'Access Locked'}
-                  </span>
+          {/* 左侧控制面板 */}
+          <div className="lg:col-span-5 space-y-6">
+            <div className="bg-[#09090b] border border-white/5 rounded-[32px] p-8 shadow-2xl">
+              <div className="flex items-center justify-between mb-8">
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-lg bg-indigo-500/10 flex items-center justify-center">
+                    <Sliders className="w-4 h-4 text-indigo-400" />
+                  </div>
+                  <h3 className="text-lg font-bold tracking-tight">基本设置</h3>
                 </div>
+                <button onClick={handleRandomPrompt} className="px-4 py-2 bg-white/5 hover:bg-white/10 rounded-xl text-[10px] font-bold uppercase tracking-widest flex items-center gap-2 border border-white/5 transition-all">
+                  <Dices className="w-3 h-3" /> 随机提示词
+                </button>
               </div>
-            </div>
-            
-            <h2 className="text-5xl md:text-7xl font-display font-bold mb-6 italic tracking-tight">Visual Engine.</h2>
-            <p className="text-zinc-500 mb-10 text-lg leading-relaxed max-w-xl">
-              视觉引擎节点已接入 Flux-1 神经核。验证暗号以解锁边缘算力，所有渲染请求均受 Cloudflare WAF 级防护。
-            </p>
 
-            <div className="relative">
-              {/* 主操作区 */}
-              <div className="space-y-8">
-                <div className="relative group">
-                  <textarea 
-                    className={`w-full bg-zinc-900/40 border ${errorType !== 'none' ? 'border-red-500/50 shadow-[0_0_20px_rgba(239,68,68,0.1)]' : 'border-white/10'} rounded-[32px] p-8 text-sm min-h-[200px] focus:outline-none focus:border-indigo-500/50 transition-all placeholder:text-zinc-700 resize-none`}
-                    placeholder="输入详细的设计构思，例如：极简主义未来派建筑，大理石质感，夕阳余晖..."
-                    value={prompt}
-                    onChange={(e) => setPrompt(e.target.value)}
-                  />
-                  
-                  {errorType !== 'none' && (
-                    <div className="absolute top-6 right-6 flex items-center gap-2 text-red-400 text-[10px] font-bold uppercase animate-pulse">
-                      <AlertCircle className="w-3.5 h-3.5" />
-                      {getErrorMessage()}
-                    </div>
-                  )}
-
-                  <button 
-                    onClick={handleGenerate}
-                    disabled={isGenerating || !prompt.trim() || errorType === 'limit' || !isUnlocked}
-                    className="absolute bottom-6 right-6 bg-white text-black px-8 py-4 rounded-2xl font-bold flex items-center gap-3 transition-all active:scale-95 shadow-2xl hover:bg-indigo-500 hover:text-white disabled:opacity-20 disabled:cursor-not-allowed group/btn"
-                  >
-                    {isGenerating ? <Loader2 className="w-5 h-5 animate-spin" /> : <Wand2 className="w-5 h-5 group-hover/btn:rotate-12 transition-transform" />}
-                    {isGenerating ? 'Rendering...' : '生成图像'}
-                  </button>
+              <div className="space-y-6">
+                <div>
+                  <label className="text-[10px] font-bold uppercase text-zinc-500 mb-3 block tracking-[0.2em] flex items-center gap-2">
+                    <Lock className="w-3 h-3" /> 访问密码
+                  </label>
+                  <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="输入密码解锁边缘算力" className="w-full bg-black/40 border border-white/10 rounded-2xl px-5 py-4 text-sm focus:border-indigo-500/40 outline-none transition-all" />
                 </div>
 
-                {/* 历史记录槽位 */}
-                {history.length > 0 && isUnlocked && (
-                  <div className="pt-8 border-t border-white/5 animate-in fade-in slide-in-from-bottom-4 duration-700">
-                    <div className="flex items-center justify-between mb-6">
-                        <div className="flex items-center gap-2 text-zinc-500">
-                            <History className="w-4 h-4" />
-                            <span className="text-[10px] font-bold uppercase tracking-widest">Neural Asset Slots</span>
-                        </div>
-                        <span className="text-[9px] text-zinc-700 font-mono tracking-tighter">MAX CAPACITY: 06</span>
+                <div>
+                  <label className="text-[10px] font-bold uppercase text-zinc-500 mb-3 block tracking-[0.2em]">正向提示词 (Positive)</label>
+                  <textarea value={prompt} onChange={(e) => setPrompt(e.target.value)} className="w-full bg-black/40 border border-white/10 rounded-2xl px-5 py-4 text-sm h-32 focus:border-indigo-500/40 outline-none resize-none transition-all" />
+                </div>
+
+                <div>
+                  <label className="text-[10px] font-bold uppercase text-zinc-500 mb-3 block tracking-[0.2em]">反向提示词 (Negative)</label>
+                  <textarea value={negPrompt} onChange={(e) => setNegPrompt(e.target.value)} placeholder="描述要在图像中避免出现的元素..." className="w-full bg-black/40 border border-white/10 rounded-2xl px-5 py-4 text-sm h-24 focus:border-indigo-500/40 outline-none resize-none opacity-60" />
+                </div>
+
+                <div>
+                  <label className="text-[10px] font-bold uppercase text-zinc-500 mb-3 block tracking-[0.2em]">文生图模型</label>
+                  <div className="relative group">
+                    <select value={model} onChange={(e) => setModel(e.target.value)} className="w-full bg-black/40 border border-white/10 rounded-2xl px-5 py-4 text-sm appearance-none focus:border-indigo-500/40 outline-none">
+                      {MODELS.map(m => <option key={m.id} value={m.id} className="bg-zinc-900">{m.name}</option>)}
+                    </select>
+                    <ChevronDown className="absolute right-5 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-600 pointer-events-none group-hover:text-indigo-400" />
+                  </div>
+                </div>
+              </div>
+
+              <div className="mt-8 pt-8 border-t border-white/5">
+                <button onClick={() => setShowAdvanced(!showAdvanced)} className="w-full flex items-center justify-between mb-6 group">
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-lg bg-purple-500/10 flex items-center justify-center"><Settings className="w-4 h-4 text-purple-400" /></div>
+                    <h4 className="text-sm font-bold tracking-tight">高级选项</h4>
+                  </div>
+                  <div className="px-3 py-1 rounded-lg bg-white/5 text-[9px] font-bold uppercase text-zinc-500 group-hover:text-white transition-all">显示/隐藏</div>
+                </button>
+
+                {showAdvanced && (
+                  <div className="space-y-6 animate-in slide-in-from-top-2 duration-300">
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <div className="flex justify-between text-[10px] font-bold uppercase text-zinc-500 mb-3"><span>宽度</span> <span>{width}px</span></div>
+                        <input type="range" min="256" max="1024" step="64" value={width} onChange={(e)=>setWidth(Number(e.target.value))} className="w-full" />
+                      </div>
+                      <div>
+                        <div className="flex justify-between text-[10px] font-bold uppercase text-zinc-500 mb-3"><span>高度</span> <span>{height}px</span></div>
+                        <input type="range" min="256" max="1024" step="64" value={height} onChange={(e)=>setHeight(Number(e.target.value))} className="w-full" />
+                      </div>
                     </div>
-                    <div className="grid grid-cols-6 gap-3">
-                      {history.map((item) => (
-                        <button 
-                          key={item.timestamp} 
-                          onClick={() => {
-                            setCurrentImage(item.url);
-                            setErrorType('none');
-                          }}
-                          className={`aspect-square rounded-2xl overflow-hidden border-2 transition-all hover:scale-105 active:scale-95 ${
-                            currentImage === item.url ? 'border-indigo-500 shadow-lg shadow-indigo-500/20 ring-4 ring-indigo-500/10' : 'border-white/5 opacity-40 hover:opacity-100'
-                          }`}
-                        >
-                          <img src={item.url} alt="History" className="w-full h-full object-cover" />
-                        </button>
-                      ))}
+                    <div>
+                      <div className="flex justify-between text-[10px] font-bold uppercase text-zinc-500 mb-3"><span>迭代步数</span> <span>{steps}</span></div>
+                      <input type="range" min="1" max="50" value={steps} onChange={(e)=>setSteps(Number(e.target.value))} className="w-full" />
+                    </div>
+                    <div>
+                      <div className="flex justify-between text-[10px] font-bold uppercase text-zinc-500 mb-3"><span>引导系数 (CFG)</span> <span>{guidance}</span></div>
+                      <input type="range" min="1" max="20" step="0.5" value={guidance} onChange={(e)=>setGuidance(Number(e.target.value))} className="w-full" />
+                    </div>
+                    <div>
+                      <label className="text-[10px] font-bold uppercase text-zinc-500 mb-3 block tracking-[0.2em]">随机种子 (Seed)</label>
+                      <div className="flex gap-2">
+                        <input type="number" value={seed} onChange={(e) => setSeed(e.target.value)} placeholder="随机种子值" className="flex-1 bg-black/40 border border-white/10 rounded-2xl px-5 py-4 text-sm outline-none focus:border-indigo-500/40" />
+                        <button onClick={() => setSeed(Math.floor(Math.random()*9999999).toString())} className="p-4 bg-white/5 border border-white/10 rounded-2xl hover:bg-white/10 transition-colors"><RefreshCw className="w-4 h-4 text-zinc-400" /></button>
+                      </div>
                     </div>
                   </div>
                 )}
               </div>
 
-              {/* 锁屏界面覆盖层 */}
-              {showAuthScreen && (
-                <div className="absolute inset-[-16px] z-20 backdrop-blur-3xl bg-black/75 rounded-[48px] flex flex-col items-center justify-center p-10 border border-white/10 shadow-[0_0_120px_rgba(0,0,0,1)] animate-in fade-in zoom-in duration-500">
-                   <div className="relative mb-10">
-                      <div className="absolute -inset-6 bg-indigo-500/30 rounded-full blur-3xl animate-pulse" />
-                      <div className="w-24 h-24 bg-zinc-900 rounded-[32px] flex items-center justify-center border border-white/10 relative shadow-inner">
-                         <Lock className="w-12 h-12 text-indigo-400" />
-                      </div>
-                   </div>
-                   
-                   <h4 className="text-3xl font-display font-bold mb-4 tracking-tight">Access Locked</h4>
-                   <p className="text-zinc-500 text-sm mb-12 text-center max-w-[340px] leading-relaxed">
-                     为了平衡边缘算力资源并抵御自动化攻击，Visual Engine 已启用节点加密。请输入授权暗号进行验证。
-                   </p>
-                   
-                   <div className="w-full max-w-sm flex flex-col gap-5">
-                     <div className="relative group">
-                        <input 
-                          type="password"
-                          value={authCode}
-                          onChange={(e) => setAuthCode(e.target.value)}
-                          onKeyDown={(e) => e.key === 'Enter' && handleUnlock()}
-                          placeholder="ENTER_AUTH_KEY"
-                          className="w-full bg-zinc-950 border border-white/10 rounded-[20px] py-6 px-6 text-center tracking-[1.2em] font-mono text-white focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 outline-none transition-all placeholder:text-zinc-800 placeholder:tracking-normal"
-                        />
-                        {errorType === 'auth' && (
-                          <div className="absolute -bottom-8 left-0 right-0 flex items-center justify-center gap-2 text-red-500 text-[10px] uppercase font-bold tracking-widest animate-shake">
-                            <ShieldAlert className="w-3.5 h-3.5" /> Verification Check Failed
-                          </div>
-                        )}
-                     </div>
-                     <button 
-                       onClick={handleUnlock}
-                       className="w-full bg-white text-black py-6 rounded-[20px] font-bold flex items-center justify-center gap-3 hover:bg-indigo-500 hover:text-white transition-all active:scale-[0.98] shadow-2xl"
-                     >
-                       <Unlock className="w-5 h-5" /> 激活视觉节点
-                     </button>
-                     <div className="flex justify-center mt-6">
-                        <div className="flex items-center gap-2 px-4 py-2 bg-white/5 rounded-full border border-white/5">
-                            <ShieldCheck className="w-3 h-3 text-zinc-500" />
-                            <span className="text-[9px] text-zinc-600 font-bold uppercase tracking-widest">WAF Shield Active</span>
-                        </div>
-                     </div>
-                   </div>
-                </div>
-              )}
+              <button onClick={handleGenerate} disabled={isGenerating} className="w-full mt-10 py-5 bg-indigo-600 text-white rounded-[24px] font-bold flex items-center justify-center gap-3 hover:bg-indigo-500 transition-all active:scale-[0.98] disabled:opacity-40">
+                {isGenerating ? <Loader2 className="w-6 h-6 animate-spin" /> : <Wand2 className="w-6 h-6" />}
+                {isGenerating ? '正在执行渲染指令...' : '生成图像'}
+              </button>
             </div>
           </div>
 
-          {/* 右侧：实时渲染卡片 */}
-          <div className="relative group animate-fade-in" style={{ animationDelay: '0.4s' }}>
-            {/* 辉光装饰 */}
-            <div className="absolute -inset-16 bg-indigo-500/5 rounded-full blur-[120px] opacity-0 group-hover:opacity-100 transition-opacity duration-1000" />
-            
-            <div className="relative aspect-square glass rounded-[56px] border border-white/10 overflow-hidden flex items-center justify-center p-4 shadow-[0_40px_100px_rgba(0,0,0,0.5)]">
-              {currentImage ? (
-                <div className="relative w-full h-full group/img overflow-hidden rounded-[42px]">
-                  <img 
-                    src={currentImage} 
-                    alt="Current Render" 
-                    className="w-full h-full object-cover shadow-2xl transition-transform duration-[2s] ease-out group-hover/img:scale-110"
-                  />
-                  {/* 图片底部覆盖层 */}
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent opacity-0 group-hover/img:opacity-100 transition-all duration-500" />
-                  
-                  <div className="absolute bottom-10 left-10 right-10 flex items-center justify-between translate-y-6 opacity-0 group-hover/img:translate-y-0 group-hover/img:opacity-100 transition-all duration-700">
-                    <div className="glass-card px-6 py-3 rounded-2xl text-[10px] font-bold uppercase tracking-[0.2em] border border-white/10">
-                        Flux-1 Schnell • 1024px
+          {/* 右侧预览区 */}
+          <div className="lg:col-span-7 space-y-6 sticky top-24">
+            <div className="bg-[#09090b] border border-white/5 rounded-[40px] p-2 flex flex-col shadow-2xl h-fit overflow-hidden">
+              <div className="p-8 flex items-center justify-between border-b border-white/5 bg-white/[0.01]">
+                <div className="flex items-center gap-3">
+                  <Monitor className="w-5 h-5 text-zinc-500" />
+                  <span className="font-display font-bold text-lg tracking-tight uppercase">生成结果</span>
+                </div>
+                {error !== 'none' && (
+                  <div className="px-4 py-2 rounded-xl bg-red-500/10 border border-red-500/20 text-red-500 text-[10px] font-bold uppercase flex items-center gap-2 animate-shake">
+                    <ShieldAlert className="w-4 h-4" /> {error === 'auth' ? '鉴权密码错误' : error === 'limit' ? '边缘节点限流中' : '节点通信错误'}
+                  </div>
+                )}
+              </div>
+
+              <div className="flex-1 m-4 min-h-[500px] rounded-[32px] bg-black/60 border border-white/5 flex flex-col items-center justify-center relative group">
+                {currentImage ? (
+                  <div className="w-full h-full relative overflow-hidden rounded-[32px]">
+                    <img src={currentImage} className="w-full h-full object-contain" alt="Render" />
+                    <div className="absolute inset-0 bg-black/60 backdrop-blur-sm opacity-0 group-hover:opacity-100 transition-all duration-500 flex items-center justify-center gap-5">
+                      <a href={currentImage} target="_blank" className="w-16 h-16 bg-white text-black rounded-full flex items-center justify-center hover:scale-110 transition-transform"><Maximize2 className="w-6 h-6" /></a>
+                      <a href={currentImage} download className="w-16 h-16 bg-indigo-600 text-white rounded-full flex items-center justify-center hover:scale-110 transition-transform"><Download className="w-6 h-6" /></a>
                     </div>
-                    <a 
-                      href={currentImage} 
-                      target="_blank" 
-                      rel="noreferrer"
-                      className="p-5 bg-white text-black rounded-[24px] shadow-2xl hover:bg-indigo-500 hover:text-white transition-all active:scale-90"
-                    >
-                      <ExternalLink className="w-6 h-6" />
-                    </a>
                   </div>
-                </div>
-              ) : (
-                <div className="text-center p-16 relative">
-                  <div className={`w-28 h-28 ${errorType !== 'none' ? 'bg-red-500/5' : 'bg-white/[0.03]'} rounded-[40px] flex items-center justify-center mx-auto mb-10 border ${errorType !== 'none' ? 'border-red-500/20' : 'border-white/5'} transition-all group-hover:scale-105 duration-500`}>
-                    {errorType !== 'none' ? (
-                      <AlertCircle className="w-12 h-12 text-red-500/40 animate-pulse" />
-                    ) : (
-                      <ImageIcon className="w-12 h-12 opacity-10 group-hover:opacity-30 transition-opacity" />
-                    )}
+                ) : (
+                  <div className="text-center">
+                    <div className="w-24 h-24 bg-white/[0.03] rounded-[32px] flex items-center justify-center mx-auto mb-8 border border-white/5"><ImageIcon className="w-10 h-10 text-zinc-700" /></div>
+                    <h5 className="text-zinc-500 font-bold uppercase tracking-[0.3em] text-sm mb-4">Neural Standby</h5>
+                    <p className="text-[11px] text-zinc-700 font-medium uppercase tracking-widest">点击生成按钮开始初始化渲染引擎</p>
                   </div>
-                  <h5 className="text-base font-bold uppercase tracking-[0.4em] text-zinc-600 mb-3">Neural Standby</h5>
-                  <p className="text-[10px] text-zinc-800 font-bold uppercase tracking-widest">Node Is Waiting For Data Input</p>
+                )}
+                {isGenerating && (
+                  <div className="absolute inset-0 bg-black/60 backdrop-blur-md flex flex-col items-center justify-center z-20">
+                    <Loader2 className="w-16 h-16 text-indigo-500 animate-spin" />
+                    <p className="mt-8 text-sm font-bold tracking-[0.5em] text-white/80 animate-pulse">渲染中...</p>
+                  </div>
+                )}
+              </div>
+
+              <div className="p-8 grid grid-cols-2 gap-8 border-t border-white/5 bg-white/[0.01]">
+                <div className="flex items-center gap-3 text-zinc-500">
+                  <div className="w-8 h-8 rounded-lg bg-zinc-900 flex items-center justify-center border border-white/5"><Clock className="w-4 h-4" /></div>
+                  <div><p className="text-[9px] font-bold uppercase text-zinc-600">耗时</p><p className="text-xs font-mono text-zinc-300">{genTime}</p></div>
                 </div>
-              )}
+                <div className="flex items-center gap-3 text-zinc-500 justify-end text-right">
+                  <div><p className="text-[9px] font-bold uppercase text-zinc-600">节点</p><p className="text-xs font-mono text-zinc-300 truncate max-w-[200px]">{MODELS.find(m=>m.id===model)?.id}</p></div>
+                  <div className="w-8 h-8 rounded-lg bg-zinc-900 flex items-center justify-center border border-white/5"><Globe className="w-4 h-4" /></div>
+                </div>
+              </div>
             </div>
 
-            {/* 悬浮标签 */}
-            <div className="absolute -top-8 -right-8 glass-card px-8 py-4 rounded-[24px] border border-white/10 shadow-2xl hidden md:block animate-bounce-slow">
-                <div className="flex items-center gap-4">
-                    <div className="w-2.5 h-2.5 rounded-full bg-indigo-500 animate-ping" />
-                    <span className="text-[11px] font-bold uppercase tracking-widest text-indigo-100">Live Render Node</span>
+            {history.length > 0 && (
+              <div className="bg-[#09090b] border border-white/5 rounded-[32px] p-8">
+                <div className="flex items-center gap-3 mb-6"><History className="w-4 h-4 text-zinc-500" /><span className="text-[10px] font-bold uppercase tracking-[0.2em] text-zinc-500">最近生成的资产</span></div>
+                <div className="grid grid-cols-6 gap-4">
+                  {history.map((h, i) => (
+                    <button key={i} onClick={() => setCurrentImage(h.url)} className={`aspect-square rounded-2xl overflow-hidden border-2 transition-all hover:scale-105 ${currentImage === h.url ? 'border-indigo-500' : 'border-transparent opacity-40'}`}>
+                      <img src={h.url} className="w-full h-full object-cover" alt="History" />
+                    </button>
+                  ))}
                 </div>
-            </div>
+              </div>
+            )}
           </div>
 
         </div>

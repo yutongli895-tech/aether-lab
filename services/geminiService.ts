@@ -1,62 +1,50 @@
 
-import { GoogleGenAI, GenerateContentResponse } from "@google/genai";
+import { GoogleGenAI } from "@google/genai";
 
-// 初始化 Gemini API
-// process.env.API_KEY 由环境自动注入
 let genAI: any = null;
-
 try {
   genAI = new GoogleGenAI({ apiKey: process.env.API_KEY });
-} catch (e) {
-  console.error("Gemini SDK Initialization failed:", e);
-}
+} catch (e) {}
 
-/**
- * 获取 Gemini 文本响应（支持流式传输）
- */
 export const getGeminiChatStream = async (message: string, history: any[] = []) => {
-  if (!genAI) throw new Error("Aether AI Engine not initialized properly.");
-  
-  try {
-    const chat = genAI.chats.create({
-      model: "gemini-3-flash-preview",
-      config: {
-        systemInstruction: `你是一位世界顶级的 AI 建筑架构师和技术顾问。
-        你的名字是 Aether AI。
-        你擅长：
-        1. 建筑美学分析与现代 UI/UX 设计建议。
-        2. Cloudflare Worker, 边缘计算等高并发架构咨询。
-        3. 能够提供具体的代码片段和设计范式。
-        你的回答应该专业、简洁且富有前瞻性。`,
-        tools: [{ googleSearch: {} }],
-      },
-    });
-
-    const result = await chat.sendMessageStream({ message });
-    return result;
-  } catch (error) {
-    console.error("Gemini API Error:", error);
-    throw error;
-  }
+  if (!genAI) throw new Error("Aether Engine disconnected");
+  const chat = genAI.chats.create({
+    model: "gemini-3-flash-preview",
+    config: { 
+      systemInstruction: "You are Aether AI, a high-end architectural and design AI advisor. Respond with professional, futuristic insights.", 
+      tools: [{ googleSearch: {} }] 
+    },
+  });
+  return await chat.sendMessageStream({ message });
 };
 
-/**
- * 生成图片 URL
- * @param prompt 提示词
- * @param authCode 访问密码
- */
-export const generateAetherImage = async (prompt: string, authCode: string) => {
+export const generateAetherImage = async (params: {
+  prompt: string;
+  negative_prompt?: string;
+  model: string;
+  password?: string;
+  width: number;
+  height: number;
+  steps: number;
+  guidance: number;
+  seed?: number;
+}) => {
   const workerUrl = "https://odd-credit-b262.yutongli895.workers.dev";
-  const modelId = "flux-1-schnell"; 
   
   const queryParams = new URLSearchParams({
-    prompt: prompt,
-    model: modelId,
-    password: authCode,
-    width: "1024",
-    height: "1024",
-    steps: "6"
+    prompt: params.prompt,
+    model: params.model,
+    password: params.password || "",
+    negative_prompt: params.negative_prompt || "",
+    width: params.width.toString(),
+    height: params.height.toString(),
+    steps: params.steps.toString(),
+    guidance: params.guidance.toString()
   });
+
+  if (params.seed !== undefined && params.seed !== null) {
+    queryParams.append("seed", params.seed.toString());
+  }
   
   return `${workerUrl}/?${queryParams.toString()}`;
 };
