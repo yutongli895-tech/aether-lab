@@ -21,14 +21,14 @@ export const getGeminiResponse = async (messages: any[]) => {
 
 /**
  * 核心：生成带有鉴权参数的图片预览 URL
- * 适配最新旗舰版 Worker 逻辑，确保 model 参数不缺失
+ * 适配最新旗舰版 Worker 逻辑，确保参数完整性
  */
 export const generateAetherImage = async (prompt: string) => {
   const workerUrl = "https://odd-credit-b262.yutongli895.workers.dev";
   const password = "P@ssw0rd"; 
   const modelId = "flux-1-schnell"; 
   
-  // 必须明确指定 model 和 password，否则 Worker 会返回 400 或 403
+  // 必须明确指定 model 和 password，否则 Worker 会返回 403
   const queryParams = new URLSearchParams({
     prompt: prompt,
     model: modelId,
