@@ -1,4 +1,3 @@
-
 // 本地架构智库内容
 const ARCHITECT_KNOWLEDGE = [
   "建议在 Cloudflare Pages 层面开启边缘压缩，提升 LCP 指标。",
@@ -11,15 +10,33 @@ const ARCHITECT_KNOWLEDGE = [
 export const getGeminiResponse = async (messages: any[]) => {
   await new Promise(resolve => setTimeout(resolve, 1000));
   const lastMsg = messages[messages.length - 1].content;
+  
   if (lastMsg.includes("你好") || lastMsg.includes("Hello")) {
-    return "神经网络已就绪。欢迎来到 Aether 架构控制台。";
+    return "神经网络已就绪。欢迎来到 Aether 架构控制台。我是您的架构优化助手。";
   }
+  
   const randomAdvice = ARCHITECT_KNOWLEDGE[Math.floor(Math.random() * ARCHITECT_KNOWLEDGE.length)];
-  return `[本地分析]：关于“${lastMsg}”，我的建议是：${randomAdvice}`;
+  return `[本地分析]：关于您的请求“${lastMsg}”，架构建议如下：${randomAdvice}`;
 };
 
+/**
+ * 核心：生成带有鉴权参数的图片预览 URL
+ * 适配最新旗舰版 Worker 逻辑，确保 model 参数不缺失
+ */
 export const generateAetherImage = async (prompt: string) => {
-  // 回退至原生的 Cloudflare Worker 域名
   const workerUrl = "https://odd-credit-b262.yutongli895.workers.dev";
-  return `${workerUrl}/?prompt=${encodeURIComponent(prompt)}`;
+  const password = "P@ssw0rd"; 
+  const modelId = "flux-1-schnell"; 
+  
+  // 必须明确指定 model 和 password，否则 Worker 会返回 400 或 403
+  const queryParams = new URLSearchParams({
+    prompt: prompt,
+    model: modelId,
+    password: password,
+    width: "1024",
+    height: "1024",
+    steps: "6"
+  });
+  
+  return `${workerUrl}/?${queryParams.toString()}`;
 };
