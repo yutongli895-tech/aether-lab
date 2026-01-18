@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { NAV_LINKS } from '../constants';
+import { NAV_LINKS } from '../constants.tsx';
 import { Menu, X, Hexagon } from 'lucide-react';
 
 export const Header: React.FC = () => {
@@ -12,6 +12,14 @@ export const Header: React.FC = () => {
     window.addEventListener('scroll', handleScroll);
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
+
+  const scrollToContact = () => {
+    const element = document.getElementById('contact');
+    if (element) {
+      element.scrollIntoView({ behavior: 'smooth' });
+    }
+    setIsMobileMenuOpen(false);
+  };
 
   return (
     <header 
@@ -35,7 +43,10 @@ export const Header: React.FC = () => {
               {link.label}
             </a>
           ))}
-          <button className="bg-white text-black px-5 py-2 rounded-full text-sm font-semibold hover:bg-zinc-200 transition-all active:scale-95">
+          <button 
+            onClick={scrollToContact}
+            className="bg-white text-black px-5 py-2 rounded-full text-sm font-semibold hover:bg-zinc-200 transition-all active:scale-95"
+          >
             Contact Us
           </button>
         </nav>
@@ -61,7 +72,10 @@ export const Header: React.FC = () => {
               {link.label}
             </a>
           ))}
-          <button className="w-full bg-white text-black py-3 rounded-xl font-semibold">
+          <button 
+            onClick={scrollToContact}
+            className="w-full bg-white text-black py-3 rounded-xl font-semibold"
+          >
             Contact Us
           </button>
         </div>

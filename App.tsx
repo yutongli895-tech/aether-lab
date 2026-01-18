@@ -1,13 +1,14 @@
 
 import React, { useState, useEffect } from 'react';
-import { Header } from './components/Header';
-import { Hero } from './components/Hero';
-import { Features } from './components/Features';
-import { GeminiChat } from './components/GeminiChat';
-import { ImageGen } from './components/ImageGen';
-import { BlogSection } from './components/BlogSection';
-import { PostDetail } from './components/PostDetail';
-import { Footer } from './components/Footer';
+import { Header } from './components/Header.tsx';
+import { Hero } from './components/Hero.tsx';
+import { Features } from './components/Features.tsx';
+import { GeminiChat } from './components/GeminiChat.tsx';
+import { ImageGen } from './components/ImageGen.tsx';
+import { BlogSection } from './components/BlogSection.tsx';
+import { PostDetail } from './components/PostDetail.tsx';
+import { ContactSection } from './components/ContactSection.tsx';
+import { Footer } from './components/Footer.tsx';
 
 const App: React.FC = () => {
   const [currentPostId, setCurrentPostId] = useState<string | null>(null);
@@ -33,6 +34,7 @@ const App: React.FC = () => {
             <BlogSection onSelectPost={setCurrentPostId} />
             <GeminiChat />
             <ImageGen />
+            <ContactSection />
             
             {/* Newsletter CTA */}
             <section id="pricing" className="py-24 relative overflow-hidden">

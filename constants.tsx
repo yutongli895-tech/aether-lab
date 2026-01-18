@@ -13,13 +13,13 @@ import {
 export const NAV_LINKS = [
   { label: 'Articles', href: '#blog' },
   { label: 'Design', href: '#design' },
-  { label: 'About', href: '#about' },
+  { label: 'Contact', href: '#contact' },
 ];
 
 /**
  * 发布新文章指南：
  * 1. 在 POSTS 数组的最前端添加一个新对象。
- * 2. id 必须唯一。
+ * 2. id 必须 unique。
  */
 export const POSTS = [
   {
