@@ -20,11 +20,30 @@ export const NAV_LINKS = [
  * 发布新文章指南：
  * 1. 在 POSTS 数组的最前端添加一个新对象。
  * 2. id 必须唯一。
- * 3. image 建议使用高质量的 Unsplash 链接。
  */
 export const POSTS = [
   {
-    id: '4', // 新文章 ID
+    id: '5',
+    title: 'Aether V3.0 深度解析：当 Gemini 3 遇见边缘视觉引擎',
+    date: 'Nov 10, 2025',
+    excerpt: '欢迎来到 Aether 架构的新纪元。本次更新带来了实时联网搜索增强与全新的 WAF 边缘防护系统。',
+    content: `今天，我们正式发布 Aether V3.0。这不仅仅是一个版本的迭代，更是生成式架构的一次跨越。
+
+核心亮点一：Gemini 3 Flash 神经核
+我们深度集成了 Google 最新的 Gemini 3 Flash 模型。它不仅拥有亚秒级的响应速度，更通过 Google Search Grounding 技术实现了实时联网。这意味着 Aether 不再局限于训练数据，它能感知今天早晨刚刚发生的科技动态或设计趋势。
+
+核心亮点二：Flux 视觉引擎
+依托于部署在 Cloudflare 边缘节点的 Flux-1 Schnell 模型，我们的图像生成不仅画质细腻，更能在短短 4 秒内完成从构思到像素的转化。无论是最复杂的赛博朋克城市景观，还是极简主义的 UI 界面，它都能精准捕捉您的灵感。
+
+核心亮点三：WAF 级边缘防御
+安全是创新的前提。我们自研的 Web Application Firewall (WAF) 机制已在边缘节点上线。它能实时拦截异常频率的自动化请求，确保每一位人类创作者都能获得公平、高速的算力支持。
+
+Aether V3.0 现已全量推送，邀请您共同探索这一神经网络与边缘计算完美结合的杰作。`,
+    category: 'Innovation',
+    image: 'https://images.unsplash.com/photo-1550751827-4bd374c3f58b?auto=format&fit=crop&q=80&w=800'
+  },
+  {
+    id: '4',
     title: 'Aether 架构节点正式迁移至原生 Worker',
     date: 'Oct 28, 2025',
     excerpt: '为了追求极致的渲染稳定性，我们将视觉引擎节点回退至原生边缘节点。',
