@@ -1,29 +1,41 @@
-
 import React, { useState, useRef, useEffect } from 'react';
-import { Message } from '../types';
-import { getGeminiResponse } from '../services/geminiService';
-import { Send, Bot, User, Loader2, Sparkles } from 'lucide-react';
+import { Message } from '../types.ts';
+import { getGeminiChatStream } from '../services/geminiService.ts';
+import { Send, Bot, User, Loader2, Cpu, ShieldCheck, Globe, Zap, AlertTriangle, ShieldAlert, Timer } from 'lucide-react';
 
 export const GeminiChat: React.FC = () => {
   const [messages, setMessages] = useState<Message[]>([
     {
       id: '1',
       role: 'assistant',
-      content: "Hello! I'm Aether, your architectural consultant. How can I help you modernize your digital ecosystem today?"
+      content: "神经网络已完全同步。Aether 架构引擎现已接入 Gemini 3 Flash 实时节点，支持联网搜索与深度设计分析。"
     }
   ]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [isSearching, setIsSearching] = useState(false);
+  const [errorType, setErrorType] = useState<'none' | 'limit' | 'other'>('none');
+  const [cooldown, setCooldown] = useState(0);
   const scrollRef = useRef<HTMLDivElement>(null);
+
+  // 冷却倒计时逻辑
+  useEffect(() => {
+    if (cooldown > 0) {
+      const timer = setTimeout(() => setCooldown(cooldown - 1), 1000);
+      return () => clearTimeout(timer);
+    } else if (cooldown === 0 && errorType === 'limit') {
+      setErrorType('none');
+    }
+  }, [cooldown]);
 
   useEffect(() => {
     if (scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
-  }, [messages]);
+  }, [messages, isLoading]);
 
   const handleSend = async () => {
-    if (!input.trim() || isLoading) return;
+    if (!input.trim() || isLoading || cooldown > 0) return;
 
     const userMsg: Message = {
       id: Date.now().toString(),
@@ -34,102 +46,152 @@ export const GeminiChat: React.FC = () => {
     setMessages(prev => [...prev, userMsg]);
     setInput('');
     setIsLoading(true);
+    setIsSearching(true);
+    setErrorType('none');
 
-    const responseText = await getGeminiResponse([...messages, userMsg]);
-    
-    setMessages(prev => [...prev, {
-      id: (Date.now() + 1).toString(),
-      role: 'assistant',
-      content: responseText
-    }]);
-    setIsLoading(false);
+    try {
+      const stream = await getGeminiChatStream(input, messages);
+      let fullResponse = "";
+      
+      const assistantMsgId = (Date.now() + 1).toString();
+      
+      setMessages(prev => [...prev, {
+        id: assistantMsgId,
+        role: 'assistant',
+        content: ""
+      }]);
+
+      for await (const chunk of stream) {
+        setIsSearching(false);
+        const text = chunk.text;
+        if (text) {
+          fullResponse += text;
+          setMessages(prev => prev.map(m => 
+            m.id === assistantMsgId ? { ...m, content: fullResponse } : m
+          ));
+        }
+      }
+    } catch (error: any) {
+      console.error("Chat Error:", error);
+      // 识别 429 或 WAF 拦截
+      if (error.status === 429 || error.message?.includes('429')) {
+        setErrorType('limit');
+        setCooldown(30); // 开启 30 秒冷却
+        setMessages(prev => [...prev, {
+          id: Date.now().toString(),
+          role: 'assistant',
+          content: "⚠️ [边缘节点防护触发]：检测到高频请求。为了确保资源公平分配，Aether 神经核已进入安全冷却模式。请在倒计时结束后重试。"
+        }]);
+      } else {
+        setErrorType('other');
+        setMessages(prev => [...prev, {
+          id: Date.now().toString(),
+          role: 'assistant',
+          content: "抱歉，由于神经元连接波动（网络异常），我暂时无法处理您的请求。请稍后刷新重试。"
+        }]);
+      }
+    } finally {
+      setIsLoading(false);
+      setIsSearching(false);
+    }
   };
 
   return (
-    <section id="chat" className="py-24 bg-[#09090b]">
+    <section id="chat" className="py-24 bg-[#030303] relative overflow-hidden">
       <div className="container mx-auto px-6">
-        <div className="text-center mb-16">
-          <div className="inline-flex items-center gap-2 text-indigo-400 mb-4">
-            <Sparkles className="w-5 h-5" />
-            <span className="font-bold tracking-widest text-xs uppercase">Consultancy</span>
-          </div>
-          <h2 className="text-4xl font-display font-bold mb-4">Talk to an AI Architect</h2>
-          <p className="text-zinc-400 max-w-xl mx-auto">
-            Our agent is trained on thousands of 2026 design paradigms to help you blueprint your next big move.
-          </p>
-        </div>
-
-        <div className="max-w-4xl mx-auto glass rounded-3xl overflow-hidden shadow-2xl border-white/5 flex flex-col h-[600px]">
-          {/* Chat Header */}
-          <div className="p-4 border-b border-white/5 bg-white/5 flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-indigo-500 rounded-full flex items-center justify-center">
-                <Bot className="w-6 h-6 text-white" />
+        <div className="max-w-4xl mx-auto glass rounded-[32px] overflow-hidden shadow-2xl border-white/5 flex flex-col h-[700px] relative">
+          
+          {/* 顶栏优化：增加 WAF 状态指示 */}
+          <div className="px-6 py-4 border-b border-white/5 bg-white/[0.02] flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              <div className={`w-10 h-10 rounded-xl flex items-center justify-center transition-colors ${errorType === 'limit' ? 'bg-amber-500/20' : 'bg-indigo-500/20'}`}>
+                {errorType === 'limit' ? <ShieldAlert className="w-5 h-5 text-amber-500" /> : <Zap className="w-5 h-5 text-indigo-400 fill-indigo-400/20" />}
               </div>
               <div>
-                <p className="font-bold text-sm">Aether Consultant</p>
-                <div className="flex items-center gap-1.5">
-                  <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
-                  <span className="text-[10px] text-zinc-400 uppercase font-semibold">Active Engine</span>
+                <p className="font-bold text-sm">Aether Neural Core</p>
+                <div className="flex items-center gap-2">
+                  <span className={`w-1.5 h-1.5 rounded-full ${errorType === 'limit' ? 'bg-amber-500 animate-pulse' : 'bg-emerald-500'}`}></span>
+                  <p className="text-[9px] text-zinc-500 uppercase font-bold tracking-widest">
+                    {errorType === 'limit' ? 'WAF Rate Limited' : 'Edge Verified'}
+                  </p>
                 </div>
               </div>
             </div>
-            <div className="text-[10px] font-mono text-zinc-500">GEMINI-3-FLASH</div>
+            <div className="flex items-center gap-3">
+                <div className="hidden sm:flex items-center gap-1.5 px-3 py-1 bg-white/5 rounded-full border border-white/10">
+                  <Globe className={`w-3 h-3 ${isSearching ? 'text-indigo-400 animate-spin' : 'text-zinc-500'}`} />
+                  <span className="text-[9px] text-zinc-400 font-bold uppercase tracking-tight">Grounding Active</span>
+                </div>
+                <ShieldCheck className="w-4 h-4 text-emerald-500" />
+            </div>
           </div>
 
-          {/* Messages Area */}
-          <div ref={scrollRef} className="flex-1 overflow-y-auto p-6 space-y-6 scroll-smooth">
+          {/* 消息区域 */}
+          <div ref={scrollRef} className="flex-1 overflow-y-auto p-6 space-y-6 scroll-smooth bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')]">
             {messages.map((msg) => (
               <div key={msg.id} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                <div className={`flex gap-4 max-w-[85%] ${msg.role === 'user' ? 'flex-row-reverse' : ''}`}>
-                  <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${
-                    msg.role === 'user' ? 'bg-zinc-800' : 'bg-indigo-600'
+                <div className={`group relative p-5 rounded-2xl max-w-[85%] text-sm leading-relaxed shadow-sm transition-all ${
+                    msg.role === 'user' 
+                      ? 'bg-indigo-600/90 text-white rounded-tr-none' 
+                      : msg.content.includes('[边缘节点防护触发]')
+                        ? 'bg-amber-500/10 border border-amber-500/20 text-amber-200 rounded-tl-none'
+                        : 'bg-zinc-900/80 backdrop-blur-sm border border-white/10 text-zinc-200 rounded-tl-none'
                   }`}>
-                    {msg.role === 'user' ? <User className="w-4 h-4" /> : <Bot className="w-4 h-4" />}
-                  </div>
-                  <div className={`p-4 rounded-2xl text-sm leading-relaxed ${
-                    msg.role === 'user' ? 'bg-zinc-800 text-zinc-200' : 'bg-white/5 border border-white/10 text-zinc-300'
-                  }`}>
-                    {msg.content}
-                  </div>
+                  <div className="whitespace-pre-wrap">{msg.content}</div>
+                  
+                  {msg.role === 'assistant' && (
+                    <div className="absolute -left-2 top-0 text-zinc-900">
+                      {msg.content.includes('[边缘节点防护触发]') ? <ShieldAlert className="w-4 h-4 text-amber-500/60" /> : <Bot className="w-4 h-4 text-indigo-500/40" />}
+                    </div>
+                  )}
                 </div>
               </div>
             ))}
-            {isLoading && (
+            
+            {isSearching && (
               <div className="flex justify-start">
-                <div className="flex gap-4">
-                  <div className="w-8 h-8 rounded-lg bg-indigo-600 flex items-center justify-center shrink-0">
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                  </div>
-                  <div className="p-4 rounded-2xl bg-white/5 border border-white/10 text-zinc-500 italic text-sm">
-                    Aether is calculating your response...
-                  </div>
+                <div className="flex items-center gap-3 px-5 py-3 rounded-2xl bg-white/[0.02] border border-white/5 text-zinc-500 text-xs italic animate-pulse">
+                  <Globe className="w-3 h-3 animate-spin text-indigo-400" />
+                  正在检索全球数据库...
+                </div>
+              </div>
+            )}
+            
+            {isLoading && !isSearching && !messages[messages.length-1].content && (
+              <div className="flex justify-start">
+                <div className="flex items-center gap-3 px-5 py-3 rounded-2xl bg-white/[0.02] border border-white/5 text-zinc-500 text-xs italic">
+                  <Loader2 className="w-3 h-3 animate-spin" />
+                  神经元重构中...
                 </div>
               </div>
             )}
           </div>
 
-          {/* Input Area */}
-          <div className="p-4 border-t border-white/5 bg-white/5">
-            <div className="relative">
+          {/* 输入区域：增加冷却倒计时显示 */}
+          <div className="p-6 border-t border-white/5 bg-black/40 backdrop-blur-xl">
+            <div className="relative group">
+              <div className={`absolute -inset-1 rounded-2xl blur opacity-0 group-focus-within:opacity-100 transition duration-500 ${errorType === 'limit' ? 'bg-amber-500/20' : 'bg-indigo-500/20'}`}></div>
               <input 
                 type="text" 
-                placeholder="Ask about design strategy, tech stacks, or future trends..."
-                className="w-full bg-zinc-950 border border-white/10 rounded-2xl py-4 pl-6 pr-14 text-sm focus:outline-none focus:border-indigo-500 transition-colors"
+                placeholder={cooldown > 0 ? `安全冷却中 (${cooldown}s)...` : "输入指令..."}
+                disabled={isLoading || cooldown > 0}
+                className="relative w-full bg-zinc-950 border border-white/10 rounded-2xl py-5 pl-6 pr-16 text-sm focus:outline-none focus:border-indigo-500/50 transition-all placeholder:text-zinc-600 disabled:opacity-50"
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && handleSend()}
               />
               <button 
                 onClick={handleSend}
-                disabled={isLoading || !input.trim()}
-                className="absolute right-2 top-2 bottom-2 px-4 bg-indigo-600 rounded-xl text-white hover:bg-indigo-500 disabled:opacity-50 transition-colors"
+                disabled={isLoading || !input.trim() || cooldown > 0}
+                className={`absolute right-3 top-3 bottom-3 px-5 rounded-xl font-bold transition-all active:scale-95 flex items-center justify-center ${
+                  cooldown > 0 ? 'bg-zinc-800 text-zinc-500' : 'bg-white text-black hover:bg-indigo-500 hover:text-white'
+                }`}
               >
-                <Send className="w-4 h-4" />
+                {cooldown > 0 ? <Timer className="w-4 h-4 animate-pulse" /> : isLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
               </button>
             </div>
-            <p className="text-[10px] text-zinc-500 text-center mt-3 uppercase tracking-tighter">
-              Aether AI may produce inaccurate information. System latency: ~450ms
+            <p className="mt-3 text-[10px] text-center text-zinc-600 uppercase tracking-[0.2em] font-medium">
+              Aether Cloudflare WAF + Gemini 3 Neural Engine
             </p>
           </div>
         </div>
