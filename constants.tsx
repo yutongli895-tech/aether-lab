@@ -16,7 +16,22 @@ export const NAV_LINKS = [
   { label: 'About', href: '#about' },
 ];
 
+/**
+ * 发布新文章指南：
+ * 1. 在 POSTS 数组的最前端添加一个新对象。
+ * 2. id 必须唯一。
+ * 3. image 建议使用高质量的 Unsplash 链接。
+ */
 export const POSTS = [
+  {
+    id: '4', // 新文章 ID
+    title: 'Aether 架构节点正式迁移至原生 Worker',
+    date: 'Oct 28, 2025',
+    excerpt: '为了追求极致的渲染稳定性，我们将视觉引擎节点回退至原生边缘节点。',
+    content: '在本次更新中，我们重点优化了 API 的调用链路。通过直接连接 Cloudflare 的边缘 Worker 节点，我们避开了复杂的 SSL 握手延迟，使得图片生成的响应速度提升了约 15%。这是我们在追求“零延迟”架构道路上的又一重要里程碑。',
+    category: 'System Update',
+    image: 'https://images.unsplash.com/photo-1639322537228-f710d846310a?auto=format&fit=crop&q=80&w=800'
+  },
   {
     id: '1',
     title: 'The Future of Neural Interfaces in 2026',

@@ -19,6 +19,7 @@ export const getGeminiResponse = async (messages: any[]) => {
 };
 
 export const generateAetherImage = async (prompt: string) => {
-  // 返回完整的生成链接
-  return `https://blog.aitishici.de5.net/?prompt=${encodeURIComponent(prompt)}`;
+  // 回退至原生的 Cloudflare Worker 域名
+  const workerUrl = "https://odd-credit-b262.yutongli895.workers.dev";
+  return `${workerUrl}/?prompt=${encodeURIComponent(prompt)}`;
 };
