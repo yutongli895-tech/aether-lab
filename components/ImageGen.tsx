@@ -3,23 +3,27 @@ import React, { useState } from 'react';
 import { generateAetherImage } from '../services/geminiService.ts';
 import { 
   Wand2, Loader2, History, Globe, 
-  Settings, Lock, Maximize2, ShieldAlert, RefreshCw, 
+  Settings, Lock, Unlock, Maximize2, ShieldAlert, RefreshCw, 
   Download, ChevronDown, ChevronUp, Layers, Clock, 
-  ImageIcon, Monitor, Sliders, Dices
+  ImageIcon, Monitor, Sliders, Dices, ShieldCheck, Key
 } from 'lucide-react';
 import { GeneratedImage } from '../types.ts';
 
 const MODELS = [
-  { id: 'flux-1-schnell', name: 'FLUX.1 [schnell] - 精确细节表现的高性能模型' },
-  { id: 'stable-diffusion-xl-base-1.0', name: 'SDXL Base 1.0 - 工业级写实模型' },
-  { id: 'dreamshaper-8-lcm', name: 'DreamShaper 8 LCM - 增强真实感的微调模型' },
-  { id: 'stable-diffusion-xl-lightning', name: 'SDXL Lightning - 超高速实时渲染模型' }
+  { id: 'flux-1-schnell', name: 'FLUX.1 [schnell] - 高性能边缘节点' },
+  { id: 'stable-diffusion-xl-base-1.0', name: 'SDXL Base 1.0 - 工业级模型' },
+  { id: 'dreamshaper-8-lcm', name: 'DreamShaper 8 LCM - 真实感优化' },
+  { id: 'stable-diffusion-xl-lightning', name: 'SDXL Lightning - 超高速渲染' }
 ];
 
 export const ImageGen: React.FC = () => {
+  // 核心状态
+  const [isVerified, setIsVerified] = useState(false);
+  const [password, setPassword] = useState('');
+  
+  // 生成参数
   const [prompt, setPrompt] = useState('cyberpunk cat');
   const [negPrompt, setNegPrompt] = useState('');
-  const [password, setPassword] = useState('');
   const [model, setModel] = useState(MODELS[0].id);
   const [width, setWidth] = useState(1024);
   const [height, setHeight] = useState(1024);
@@ -28,11 +32,26 @@ export const ImageGen: React.FC = () => {
   const [seed, setSeed] = useState<string>('');
   const [showAdvanced, setShowAdvanced] = useState(true);
   
+  // 运行状态
   const [isGenerating, setIsGenerating] = useState(false);
   const [error, setError] = useState<'none' | 'auth' | 'limit' | 'network'>('none');
   const [history, setHistory] = useState<GeneratedImage[]>([]);
   const [currentImage, setCurrentImage] = useState<string | null>(null);
   const [genTime, setGenTime] = useState<string>('-');
+
+  // 验证逻辑
+  const handleVerify = () => {
+    // 匹配 worker.js 中的 PASSWORDS 逻辑
+    if (password === 'P@ssw0rd') {
+      setIsVerified(true);
+      setError('none');
+    } else {
+      setError('auth');
+      const el = document.getElementById('pass-input');
+      el?.classList.add('animate-shake');
+      setTimeout(() => el?.classList.remove('animate-shake'), 400);
+    }
+  };
 
   const handleRandomPrompt = () => {
     const prompts = [
@@ -56,7 +75,7 @@ export const ImageGen: React.FC = () => {
         prompt,
         negative_prompt: negPrompt,
         model,
-        password,
+        password, // 使用已验证的密码
         width,
         height,
         steps: model === 'flux-1-schnell' ? Math.min(steps, 8) : steps,
@@ -85,11 +104,74 @@ export const ImageGen: React.FC = () => {
     }
   };
 
+  // --- 登录/验证界面 ---
+  if (!isVerified) {
+    return (
+      <section id="design" className="py-24 bg-[#030303] relative min-h-[600px] flex items-center justify-center">
+        <div className="blob top-1/4 left-1/4 opacity-10" />
+        <div className="container mx-auto px-6 relative z-10">
+          <div className="max-w-md mx-auto glass rounded-[40px] p-12 border-white/5 shadow-2xl text-center">
+            <div className="w-20 h-20 bg-indigo-500/10 rounded-3xl flex items-center justify-center mx-auto mb-8 border border-indigo-500/20">
+              <Key className="w-10 h-10 text-indigo-400" />
+            </div>
+            <h2 className="text-2xl font-display font-bold mb-4 tracking-tight">Neural Protocol</h2>
+            <p className="text-zinc-500 text-sm mb-10 leading-relaxed uppercase tracking-widest font-medium">
+              请输入您的神经节点访问密码（邀请码）以初始化视觉实验室。
+            </p>
+            
+            <div className="space-y-4">
+              <div id="pass-input" className="relative">
+                <input 
+                  type="password" 
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && handleVerify()}
+                  placeholder="Password..."
+                  className="w-full bg-black border border-white/10 rounded-2xl px-6 py-5 text-center text-lg focus:border-indigo-500/50 outline-none transition-all"
+                />
+                {error === 'auth' && (
+                  <p className="text-red-500 text-[10px] font-bold uppercase mt-3 tracking-widest">验证失败：无效的访问凭证</p>
+                )}
+              </div>
+              <button 
+                onClick={handleVerify}
+                className="w-full py-5 bg-white text-black rounded-2xl font-bold hover:bg-indigo-500 hover:text-white transition-all active:scale-95 shadow-xl shadow-white/5"
+              >
+                解锁控制台
+              </button>
+            </div>
+            
+            <div className="mt-8 flex items-center justify-center gap-2 text-[9px] text-zinc-600 font-bold uppercase tracking-widest">
+              <ShieldCheck className="w-3 h-3" /> Encrypted Endpoint Verified
+            </div>
+          </div>
+        </div>
+      </section>
+    );
+  }
+
+  // --- 解锁后的专业实验室界面 ---
   return (
     <section id="design" className="py-24 bg-[#030303] relative min-h-screen">
       <div className="blob top-1/4 right-0 opacity-10" />
       <div className="container mx-auto px-6 relative z-10">
         
+        <div className="flex items-center justify-between mb-12">
+            <div>
+                <h2 className="text-3xl md:text-5xl font-display font-bold italic tracking-tight">Visual Lab.</h2>
+                <div className="flex items-center gap-2 mt-2">
+                    <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse" />
+                    <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-500">Aether Node Connected (Verified)</p>
+                </div>
+            </div>
+            <button 
+                onClick={() => setIsVerified(false)} 
+                className="flex items-center gap-2 px-4 py-2 bg-white/5 rounded-xl border border-white/10 text-[10px] font-bold uppercase tracking-widest text-zinc-400 hover:bg-red-500/10 hover:text-red-400 transition-all"
+            >
+                <Lock className="w-3 h-3" /> 锁定会话
+            </button>
+        </div>
+
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
           
           {/* 左侧控制面板 */}
@@ -100,29 +182,22 @@ export const ImageGen: React.FC = () => {
                   <div className="w-8 h-8 rounded-lg bg-indigo-500/10 flex items-center justify-center">
                     <Sliders className="w-4 h-4 text-indigo-400" />
                   </div>
-                  <h3 className="text-lg font-bold tracking-tight">基本设置</h3>
+                  <h3 className="text-lg font-bold tracking-tight">参数架构</h3>
                 </div>
                 <button onClick={handleRandomPrompt} className="px-4 py-2 bg-white/5 hover:bg-white/10 rounded-xl text-[10px] font-bold uppercase tracking-widest flex items-center gap-2 border border-white/5 transition-all">
-                  <Dices className="w-3 h-3" /> 随机提示词
+                  <Dices className="w-3 h-3" /> 随机灵感
                 </button>
               </div>
 
               <div className="space-y-6">
-                <div>
-                  <label className="text-[10px] font-bold uppercase text-zinc-500 mb-3 block tracking-[0.2em] flex items-center gap-2">
-                    <Lock className="w-3 h-3" /> 访问密码
-                  </label>
-                  <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="输入密码解锁边缘算力" className="w-full bg-black/40 border border-white/10 rounded-2xl px-5 py-4 text-sm focus:border-indigo-500/40 outline-none transition-all" />
-                </div>
-
                 <div>
                   <label className="text-[10px] font-bold uppercase text-zinc-500 mb-3 block tracking-[0.2em]">正向提示词 (Positive)</label>
                   <textarea value={prompt} onChange={(e) => setPrompt(e.target.value)} className="w-full bg-black/40 border border-white/10 rounded-2xl px-5 py-4 text-sm h-32 focus:border-indigo-500/40 outline-none resize-none transition-all" />
                 </div>
 
                 <div>
-                  <label className="text-[10px] font-bold uppercase text-zinc-500 mb-3 block tracking-[0.2em]">反向提示词 (Negative)</label>
-                  <textarea value={negPrompt} onChange={(e) => setNegPrompt(e.target.value)} placeholder="描述要在图像中避免出现的元素..." className="w-full bg-black/40 border border-white/10 rounded-2xl px-5 py-4 text-sm h-24 focus:border-indigo-500/40 outline-none resize-none opacity-60" />
+                  <label className="text-[10px] font-bold uppercase text-zinc-500 mb-3 block tracking-[0.2em] text-red-900/40">反向提示词 (Negative)</label>
+                  <textarea value={negPrompt} onChange={(e) => setNegPrompt(e.target.value)} placeholder="描述要排除的视觉元素..." className="w-full bg-black/40 border border-white/10 rounded-2xl px-5 py-4 text-sm h-24 focus:border-indigo-500/40 outline-none resize-none opacity-60" />
                 </div>
 
                 <div>
@@ -140,9 +215,11 @@ export const ImageGen: React.FC = () => {
                 <button onClick={() => setShowAdvanced(!showAdvanced)} className="w-full flex items-center justify-between mb-6 group">
                   <div className="flex items-center gap-3">
                     <div className="w-8 h-8 rounded-lg bg-purple-500/10 flex items-center justify-center"><Settings className="w-4 h-4 text-purple-400" /></div>
-                    <h4 className="text-sm font-bold tracking-tight">高级选项</h4>
+                    <h4 className="text-sm font-bold tracking-tight">高级实验室选项</h4>
                   </div>
-                  <div className="px-3 py-1 rounded-lg bg-white/5 text-[9px] font-bold uppercase text-zinc-500 group-hover:text-white transition-all">显示/隐藏</div>
+                  <div className="px-3 py-1 rounded-lg bg-white/5 text-[9px] font-bold uppercase text-zinc-500 group-hover:text-white transition-all">
+                    {showAdvanced ? '收起控制台' : '展开控制台'}
+                  </div>
                 </button>
 
                 {showAdvanced && (
@@ -158,7 +235,7 @@ export const ImageGen: React.FC = () => {
                       </div>
                     </div>
                     <div>
-                      <div className="flex justify-between text-[10px] font-bold uppercase text-zinc-500 mb-3"><span>迭代步数</span> <span>{steps}</span></div>
+                      <div className="flex justify-between text-[10px] font-bold uppercase text-zinc-500 mb-3"><span>迭代步数 (Steps)</span> <span>{steps}</span></div>
                       <input type="range" min="1" max="50" value={steps} onChange={(e)=>setSteps(Number(e.target.value))} className="w-full" />
                     </div>
                     <div>
@@ -178,7 +255,7 @@ export const ImageGen: React.FC = () => {
 
               <button onClick={handleGenerate} disabled={isGenerating} className="w-full mt-10 py-5 bg-indigo-600 text-white rounded-[24px] font-bold flex items-center justify-center gap-3 hover:bg-indigo-500 transition-all active:scale-[0.98] disabled:opacity-40">
                 {isGenerating ? <Loader2 className="w-6 h-6 animate-spin" /> : <Wand2 className="w-6 h-6" />}
-                {isGenerating ? '正在执行渲染指令...' : '生成图像'}
+                {isGenerating ? '正在重构神经像素...' : '初始化渲染'}
               </button>
             </div>
           </div>
@@ -189,11 +266,11 @@ export const ImageGen: React.FC = () => {
               <div className="p-8 flex items-center justify-between border-b border-white/5 bg-white/[0.01]">
                 <div className="flex items-center gap-3">
                   <Monitor className="w-5 h-5 text-zinc-500" />
-                  <span className="font-display font-bold text-lg tracking-tight uppercase">生成结果</span>
+                  <span className="font-display font-bold text-lg tracking-tight uppercase">预览监视器</span>
                 </div>
                 {error !== 'none' && (
                   <div className="px-4 py-2 rounded-xl bg-red-500/10 border border-red-500/20 text-red-500 text-[10px] font-bold uppercase flex items-center gap-2 animate-shake">
-                    <ShieldAlert className="w-4 h-4" /> {error === 'auth' ? '鉴权密码错误' : error === 'limit' ? '边缘节点限流中' : '节点通信错误'}
+                    <ShieldAlert className="w-4 h-4" /> {error === 'limit' ? '边缘限流中' : '网络连接波动'}
                   </div>
                 )}
               </div>
@@ -211,7 +288,7 @@ export const ImageGen: React.FC = () => {
                   <div className="text-center">
                     <div className="w-24 h-24 bg-white/[0.03] rounded-[32px] flex items-center justify-center mx-auto mb-8 border border-white/5"><ImageIcon className="w-10 h-10 text-zinc-700" /></div>
                     <h5 className="text-zinc-500 font-bold uppercase tracking-[0.3em] text-sm mb-4">Neural Standby</h5>
-                    <p className="text-[11px] text-zinc-700 font-medium uppercase tracking-widest">点击生成按钮开始初始化渲染引擎</p>
+                    <p className="text-[11px] text-zinc-700 font-medium uppercase tracking-widest text-center px-12">等待神经信号输入以启动渲染进程</p>
                   </div>
                 )}
                 {isGenerating && (
@@ -225,10 +302,10 @@ export const ImageGen: React.FC = () => {
               <div className="p-8 grid grid-cols-2 gap-8 border-t border-white/5 bg-white/[0.01]">
                 <div className="flex items-center gap-3 text-zinc-500">
                   <div className="w-8 h-8 rounded-lg bg-zinc-900 flex items-center justify-center border border-white/5"><Clock className="w-4 h-4" /></div>
-                  <div><p className="text-[9px] font-bold uppercase text-zinc-600">耗时</p><p className="text-xs font-mono text-zinc-300">{genTime}</p></div>
+                  <div><p className="text-[9px] font-bold uppercase text-zinc-600">生成耗时</p><p className="text-xs font-mono text-zinc-300">{genTime}</p></div>
                 </div>
                 <div className="flex items-center gap-3 text-zinc-500 justify-end text-right">
-                  <div><p className="text-[9px] font-bold uppercase text-zinc-600">节点</p><p className="text-xs font-mono text-zinc-300 truncate max-w-[200px]">{MODELS.find(m=>m.id===model)?.id}</p></div>
+                  <div><p className="text-[9px] font-bold uppercase text-zinc-600">渲染节点</p><p className="text-xs font-mono text-zinc-300 truncate max-w-[200px]">{MODELS.find(m=>m.id===model)?.id}</p></div>
                   <div className="w-8 h-8 rounded-lg bg-zinc-900 flex items-center justify-center border border-white/5"><Globe className="w-4 h-4" /></div>
                 </div>
               </div>
@@ -236,7 +313,7 @@ export const ImageGen: React.FC = () => {
 
             {history.length > 0 && (
               <div className="bg-[#09090b] border border-white/5 rounded-[32px] p-8">
-                <div className="flex items-center gap-3 mb-6"><History className="w-4 h-4 text-zinc-500" /><span className="text-[10px] font-bold uppercase tracking-[0.2em] text-zinc-500">最近生成的资产</span></div>
+                <div className="flex items-center gap-3 mb-6"><History className="w-4 h-4 text-zinc-500" /><span className="text-[10px] font-bold uppercase tracking-[0.2em] text-zinc-500">最近生成的神经资产</span></div>
                 <div className="grid grid-cols-6 gap-4">
                   {history.map((h, i) => (
                     <button key={i} onClick={() => setCurrentImage(h.url)} className={`aspect-square rounded-2xl overflow-hidden border-2 transition-all hover:scale-105 ${currentImage === h.url ? 'border-indigo-500' : 'border-transparent opacity-40'}`}>
