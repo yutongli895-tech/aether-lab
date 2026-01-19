@@ -1,32 +1,41 @@
 
 import { GoogleGenAI } from "@google/genai";
 
-// 这里的 process.env.API_KEY 会由平台自动注入，不要手动覆盖
 const getAI = () => new GoogleGenAI({ apiKey: process.env.API_KEY });
-
 const WORKER_URL = "https://odd-credit-b262.yutongli895.workers.dev";
 
 export const getGeminiChatStream = async (message: string, history: any[] = []) => {
   const ai = getAI();
-  const contents = history.map(msg => ({
+  
+  // 关键修复：Gemini 要求对话历史必须以 'user' 开始。
+  // 过滤掉首条如果它是 assistant (欢迎语)，确保发送的数据流合法。
+  let validHistory = history.map(msg => ({
     role: msg.role === 'assistant' ? 'model' : 'user',
     parts: [{ text: msg.content }]
   }));
-  
-  contents.push({ role: 'user', parts: [{ text: message }] });
+
+  // 确保第一条消息是 user
+  const firstUserIndex = validHistory.findIndex(h => h.role === 'user');
+  if (firstUserIndex !== -1) {
+    validHistory = validHistory.slice(firstUserIndex);
+  } else {
+    validHistory = []; // 如果没找到 user，干脆清空
+  }
 
   try {
-    const response = await ai.models.generateContentStream({
+    const chat = ai.chats.create({
       model: 'gemini-3-flash-preview',
-      contents: contents,
       config: {
         systemInstruction: "你是一个专业的 AI 架构核。回复应当简洁、专业，并利用搜索能力提供最新资讯。",
         tools: [{ googleSearch: {} }]
-      }
+      },
+      history: validHistory
     });
+
+    const response = await chat.sendMessageStream({ message });
     return response;
   } catch (error) {
-    console.error("Gemini SDK Connection Error:", error);
+    console.error("Gemini SDK Chat Error:", error);
     throw error;
   }
 };
@@ -42,7 +51,6 @@ export const generateAetherImage = async (params: {
   guidance: number;
   seed?: number;
 }) => {
-  // 严格映射 Worker 的参数名，特别是 num_steps 对应 worker.js 中的逻辑
   const queryParams = new URLSearchParams({
     prompt: params.prompt,
     model: params.model,
