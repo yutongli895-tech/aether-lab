@@ -1,15 +1,9 @@
 
 import { GoogleGenAI } from "@google/genai";
 
-// 初始化官方 SDK
 const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 const WORKER_URL = "https://odd-credit-b262.yutongli895.workers.dev";
 
-/**
- * 聊天服务：使用 SDK 驱动。
- * 注意：如果需要彻底解决中国 IP 访问，建议通过 VPN 或将 SDK 的 API 请求通过 Worker 代理。
- * 此处遵循 SDK 规范调用。
- */
 export const getGeminiChatStream = async (message: string, history: any[] = []) => {
   const contents = history.map(msg => ({
     role: msg.role === 'assistant' ? 'model' : 'user',
@@ -23,11 +17,10 @@ export const getGeminiChatStream = async (message: string, history: any[] = []) 
       model: 'gemini-3-flash-preview',
       contents: contents,
       config: {
-        systemInstruction: "你是一个专业的 AI 架构核。你提供深度的设计分析和架构洞察。请务必使用联网搜索功能来确保你的回答基于最新的科技趋势。回复应当简洁专业。",
+        systemInstruction: "你是一个专业的 AI 架构核。回复应当简洁、专业，并利用搜索能力提供最新资讯。",
         tools: [{ googleSearch: {} }]
       }
     });
-
     return response;
   } catch (error) {
     console.error("Gemini SDK Connection Error:", error);
@@ -35,9 +28,6 @@ export const getGeminiChatStream = async (message: string, history: any[] = []) 
   }
 };
 
-/**
- * 图像生成：继续使用 Worker 代理以利用边缘算力和 WAF 防护
- */
 export const generateAetherImage = async (params: {
   prompt: string;
   negative_prompt?: string;
@@ -49,13 +39,15 @@ export const generateAetherImage = async (params: {
   guidance: number;
   seed?: number;
 }) => {
+  // 严格映射 Worker 的 searchParams.get 参数名
   const queryParams = new URLSearchParams({
     prompt: params.prompt,
     model: params.model,
     password: params.password || "",
+    negative_prompt: params.negative_prompt || "",
     width: params.width.toString(),
     height: params.height.toString(),
-    steps: params.steps.toString(),
+    num_steps: params.steps.toString(), // 对应 worker.js 中的 num_steps/steps 逻辑
     guidance: params.guidance.toString()
   });
 
@@ -63,5 +55,6 @@ export const generateAetherImage = async (params: {
     queryParams.append("seed", params.seed.toString());
   }
   
+  // 返回带参数的 URL，前端 Image 对象的 onload 会触发 worker 的生成逻辑
   return `${WORKER_URL}/?${queryParams.toString()}`;
 };
