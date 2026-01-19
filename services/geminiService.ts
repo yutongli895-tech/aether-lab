@@ -1,10 +1,13 @@
 
 import { GoogleGenAI } from "@google/genai";
 
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+// 这里的 process.env.API_KEY 会由平台自动注入，不要手动覆盖
+const getAI = () => new GoogleGenAI({ apiKey: process.env.API_KEY });
+
 const WORKER_URL = "https://odd-credit-b262.yutongli895.workers.dev";
 
 export const getGeminiChatStream = async (message: string, history: any[] = []) => {
+  const ai = getAI();
   const contents = history.map(msg => ({
     role: msg.role === 'assistant' ? 'model' : 'user',
     parts: [{ text: msg.content }]
@@ -39,7 +42,7 @@ export const generateAetherImage = async (params: {
   guidance: number;
   seed?: number;
 }) => {
-  // 严格映射 Worker 的 searchParams.get 参数名
+  // 严格映射 Worker 的参数名，特别是 num_steps 对应 worker.js 中的逻辑
   const queryParams = new URLSearchParams({
     prompt: params.prompt,
     model: params.model,
@@ -47,7 +50,7 @@ export const generateAetherImage = async (params: {
     negative_prompt: params.negative_prompt || "",
     width: params.width.toString(),
     height: params.height.toString(),
-    num_steps: params.steps.toString(), // 对应 worker.js 中的 num_steps/steps 逻辑
+    num_steps: params.steps.toString(),
     guidance: params.guidance.toString()
   });
 
@@ -55,6 +58,5 @@ export const generateAetherImage = async (params: {
     queryParams.append("seed", params.seed.toString());
   }
   
-  // 返回带参数的 URL，前端 Image 对象的 onload 会触发 worker 的生成逻辑
   return `${WORKER_URL}/?${queryParams.toString()}`;
 };
