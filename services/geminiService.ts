@@ -1,21 +1,58 @@
 
-import { GoogleGenAI } from "@google/genai";
+/**
+ * Aether Gemini Service - Node Proxy Implementation
+ */
 
-let genAI: any = null;
-try {
-  genAI = new GoogleGenAI({ apiKey: process.env.API_KEY });
-} catch (e) {}
+const WORKER_URL = "https://odd-credit-b262.yutongli895.workers.dev";
 
 export const getGeminiChatStream = async (message: string, history: any[] = []) => {
-  if (!genAI) throw new Error("Aether Engine disconnected");
-  const chat = genAI.chats.create({
-    model: "gemini-3-flash-preview",
-    config: { 
-      systemInstruction: "You are Aether AI, a high-end architectural and design AI advisor. Respond with professional, futuristic insights.", 
-      tools: [{ googleSearch: {} }] 
-    },
+  const contents = history.map(msg => ({
+    role: msg.role === 'assistant' ? 'model' : 'user',
+    parts: [{ text: msg.content }]
+  }));
+  
+  contents.push({ role: 'user', parts: [{ text: message }] });
+
+  const response = await fetch(`${WORKER_URL}/api/chat`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      contents,
+      apiKey: process.env.API_KEY 
+    })
   });
-  return await chat.sendMessageStream({ message });
+
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({ message: 'Node Connection Failed' }));
+    throw { status: response.status, message: err.message || 'Service Unavailable' };
+  }
+
+  const reader = response.body?.getReader();
+  const decoder = new TextDecoder();
+
+  return (async function* () {
+    let buffer = '';
+    while (true) {
+      const { done, value } = await reader!.read();
+      if (done) break;
+      
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split('\n');
+      buffer = lines.pop() || '';
+
+      for (const line of lines) {
+        if (line.trim().startsWith('data: ')) {
+          try {
+            const data = JSON.parse(line.trim().slice(6));
+            const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
+            if (text) {
+              yield { text };
+            }
+          } catch (e) { }
+        }
+      }
+    }
+  })();
 };
 
 export const generateAetherImage = async (params: {
@@ -29,13 +66,10 @@ export const generateAetherImage = async (params: {
   guidance: number;
   seed?: number;
 }) => {
-  const workerUrl = "https://odd-credit-b262.yutongli895.workers.dev";
-  
   const queryParams = new URLSearchParams({
     prompt: params.prompt,
     model: params.model,
     password: params.password || "",
-    negative_prompt: params.negative_prompt || "",
     width: params.width.toString(),
     height: params.height.toString(),
     steps: params.steps.toString(),
@@ -46,5 +80,5 @@ export const generateAetherImage = async (params: {
     queryParams.append("seed", params.seed.toString());
   }
   
-  return `${workerUrl}/?${queryParams.toString()}`;
+  return `${WORKER_URL}/?${queryParams.toString()}`;
 };
